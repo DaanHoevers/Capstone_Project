@@ -1,0 +1,316 @@
+---
+title: "Milestone Report Capstone Project"
+author: "DaanHoevers"
+date: "Friday, July 24, 2015"
+output: html_document
+---
+
+### Status of Data Science Capstone Project
+
+This report contains the status of the Capstone project as part of the [Data Science specialization](https://www.coursera.org/specialization/jhudatascience/1?utm_medium=listingPage) by John Hopkins University on Coursera. 
+
+This course will start with the basics, analyzing a large corpus of text documents to discover the structure in the data and how words are put together. It will cover cleaning and analyzing text data, then building and sampling from a predictive text model. Finally, you will use the knowledge you gained in data products to build a predictive text product you can show off to your family, friends, and potential employers.
+
+I have chosen to include larger part of the code in this RPubs publication in order to provide the reader an insight in the code used. However, I acknowledge that a publication without code would have been easier to read. Please follow this [github link](https://github.com/DaanHoevers/Capstone_Project) for the R Markdown document.
+
+### Task 0 - Understanding the Problem
+
+#### Project steps
+
+The steps provided by the Capstone project are used to structure the creation of a predictive text product. Hence, the following steps are to (1) Acquire and Cleanse the data, (2) do an Exploratory Data Analysis, (3) Modeling, (4) Prediction, (5) Creative Exploration, (6) Create a Data Product and (7) make a slide deck. Steps 0, 1 and 2 are part of this Milestone Report as well as a view on the remainder of the tasks.
+
+#### Data sources used
+
+The data is obtained from a corpus called [HC Corpora](www.corpora.heliohost.org). The following data sources are available for English: 
+
+* en_US.blogs.txt
+* en_US.news.txt
+* en_US.twitter.txt
+
+It has been decided the restrict this project to the English language in order to be able to share it with a majority of the fellow students.
+
+#### R Libraries used
+The following R Libraries are used to create this report.
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE, results="HIDE"}
+libs <- c("stringr", "data.table", "tm", "RWeka", "ggplot2", "MASS", "gridExtra")
+i <- lapply(libs, require, character.only = TRUE)
+```
+
+### Task 1 - Data acquisition and cleaning
+
+#### Features of the data
+
+Below code was used to load the data into R and obtain the basic features of the data sources.
+
+```{r, echo = TRUE, message=FALSE}
+ptm <- proc.time() ## start  
+
+## twitter
+con <- file("en_US.twitter.txt", "r")
+twt <- readLines(con, warn=FALSE)
+close(con)
+
+twt.size <- format(object.size(twt), units = "Mb")
+twt.len <- length(twt)
+twt.char <- sum(nchar(twt))
+
+## blog
+con <- file("en_US.blogs.txt", "r")
+blg <- readLines(con, warn=FALSE)
+close(con)
+
+blg.size <- format(object.size(blg), units = "Mb")
+blg.len <- length(blg)
+blg.char <- sum(nchar(blg))
+
+## news
+con <- file("en_US.news.txt", "r")
+nws <- readLines(con, warn=FALSE)
+close(con)
+
+nws.size <- format(object.size(nws), units = "Mb")
+nws.len <- length(nws)
+nws.char <-sum(nchar(nws))
+
+tmRead <- proc.time() - ptm ## stop 
+tmRead
+```
+
+The following table summarizes the object size, the number of lines and the number of characters of the different sources. It took `r tmRead[3]` seconds to load the data and obtain the numbers presented in below overview. As can be seen the twitter object is the largest and has the most number of lines. The blogs file has the most characters. 
+
+``` {r, echo = FALSE, message=FALSE}
+x <- c("Twitter", "News", "Blogs")
+a <- c(twt.size, nws.size, blg.size)
+b <- c(twt.len, nws.len, blg.len)
+c <- c(twt.char, nws.char, blg.char)
+data.table(Data = x, Object_Size = a, Lines = b, Characters = c)
+```
+
+#### Sampling of the Data
+
+As shown the data sets are relatively large and therefore a sample of the data is taken in order to obtain an accurate approximation the results when all data was used. Using the [R sample function](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html) a sample of 0,1% was taken and the original files removed to save space.
+
+``` {r, echo = -(7:12), message=FALSE}
+## load files, obtain basic statistics and take sample 1% of each file
+set.seed(1)
+factor <- 0.001
+
+twt.sample <- sample(twt, twt.len*factor, replace = F); rm(twt)
+blg.sample <- sample(blg, blg.len*factor, replace = F); rm(blg)
+nws.sample <- sample(nws, nws.len*factor, replace = F); rm(nws)
+
+## create data table summarizing the data.
+w <- list(twt.sample, nws.sample, blg.sample)
+i <- lapply(w, length)
+j <- lapply(lapply(w, nchar), sum)
+data.table(Data = x, Lines = i, Characters = j)
+```
+
+#### Data Cleansing
+
+The sample data is used to create a data corpus. The data corpus is cleansed by removing number, punctuation and white spaces. All text is also put to lower case lettters and converted from latin1 encoding to ASCII encoding to faciliate processing. 
+
+``` {r, echo = TRUE, message=FALSE}
+## creating a data corpus
+data <- paste(nws.sample, blg.sample, twt.sample)
+dataCorp <- VCorpus(VectorSource(data))
+
+## function to cleanse text
+cleanCorp <- function(x){
+        tmp <- tm_map(x, removeNumbers)
+        tmp <- tm_map(tmp, removePunctuation)                   
+        ##tmp <- tm_map(tmp, removeWords, stopwords())
+        tmp <- tm_map(tmp, stripWhitespace)
+        ##tmp <- tm_map(tmp, stemDocument, language = "en")
+        tmp <- tm_map(tmp, content_transformer(tolower))
+        tmp <- tm_map(tmp, content_transformer(function(x) iconv(x, "latin1", "ASCII", sub="")))
+        return(tmp)
+}
+
+## cleanse the data corpus
+dataClean <- cleanCorp(dataCorp)
+
+## object size cleansed data
+size <- format(object.size(dataClean), units = "Mb")
+
+```
+
+The size of the newly created object is `r size`.
+
+
+### Task 2 - Exploratory analysis
+
+#### Creating N Grams
+
+The cleansed data is used to create ngrams. An n-gram is a contiguous sequence of n items from a given sequence of text or speech, for more information on ngrams, please visit this [wikipedia page](https://en.wikipedia.org/wiki/N-gram)
+
+``` {r, echo = TRUE, message=FALSE}
+## Sets the default number of threads to use
+## http://stackoverflow.com/questions/19024873/why-does-r-hang-when-using-ngramtokenizer
+options(mc.cores=1) 
+
+## ngram function
+## http://weka.sourceforge.net/doc.dev/weka/core/tokenizers/NGramTokenize.html 
+ngram <- function(x, ng) {
+        dl <- " \\r\\n\\t.,;:\"()?!" 
+        df <- data.frame(body=unlist(sapply(x, `[`, "content")), stringsAsFactors=F)
+        tmp <- NGramTokenizer(df, Weka_control(min = ng, max = ng, delimiters = dl))
+}
+
+## create ngrams
+uni <- ngram(dataClean, 1)      # unigram
+bi <- ngram(dataClean, 2)       # bigram
+tri <- ngram(dataClean, 3)      # trigram
+quad <- ngram(dataClean, 4)     # quadgram
+```
+
+#### Understanding the variation
+
+In below code the relative frequency distribution of the different n-grams is determined in order to get an understanding of the variation of the different n-grams. Of each n-gram, the frequency of the word or word combination is plotted.
+
+``` {r, echo = TRUE, message=FALSE, fig.width=8, fig.height=6}
+## frequency distribution function
+freq <- function(x){
+        options (digits = 2)
+        freq <- sort(table(x), decreasing = TRUE)
+        rel_freq <- freq/length(x)
+        tbl <- cbind(freq, rel_freq)
+        return(tbl)
+}
+
+## calculate frequencies
+uni_frq <- freq(uni)
+bi_frq <- freq(bi)
+tri_frq <- freq(tri)
+quad_frq <- freq(quad)
+
+## function to create data frame
+frame <- function(x){
+        y <- data.frame(words = row.names(x), x, row.names = NULL)
+        y$words <- factor(y$words, levels = y$words[order(-y$freq)])
+        return(y)
+}
+
+## create data frames
+x1 <- frame(uni_frq)
+x2 <- frame(bi_frq)
+x3 <- frame(tri_frq)
+x4 <- frame(quad_frq)
+
+## create plots
+p1 <- ggplot(data=x1[1:100,], aes(x=words, y=freq, group = 1)) + geom_line() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + ggtitle("Unigram")
+p2 <- ggplot(data=x2[1:100,], aes(x=words, y=freq, group = 1)) + geom_line() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + ggtitle("Bigram")
+p3 <- ggplot(data=x3[1:100,], aes(x=words, y=freq, group = 1)) + geom_line() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + ggtitle("Trigram")
+p4 <- ggplot(data=x4[1:100,], aes(x=words, y=freq, group = 1)) + geom_line() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + ggtitle("Quadgram")
+
+
+grid.arrange(p1, p2, p3, p4, ncol=2)
+```
+
+The following observations can be made based on these graphs:
+
+* Each n-gram is characterized by very skewed pattern, a small number of unique words or word combination have a high frequency. 
+* The higher the n-gram (i.e. from uni to quad), the longer the tail end is.
+* The patterns of the tri-gram and quadgram do not differ much and the combination with the hightest frequency is around the `r x4[1,2]`.
+
+In below table, the top ten of the uni-, bi-, and trigrams are presented
+
+``` {r, echo = TRUE, message=FALSE}
+## print top 10 of frequencies
+dt_tbl1 <- data.table(x1[1:10,1:2], x2[1:10,1:2])
+dt_tbl2 <- data.table(x3[1:10,1:2], x4[1:10,1:2])
+dt_tbl1 ## uni- and bigrams
+dt_tbl2 ## tri- and quadgrams
+```
+
+Based on above observations, it has been chosen to omit the use of the quadgrams because they are very corpus specific and do not add much additional value compared to the trigram.
+
+#### Removal of stopwords
+
+In order to further analysis the data set is has been decided to remove the stopwords from the corpus by using the remove [stopwords function](http://www.inside-r.org/packages/cran/tm/docs/stopwords) from the TM package.
+
+``` {r, echo = FALSE, message=FALSE}
+## function to cleanse text including removal of stopwords
+cleanCorp_sw <- function(x){
+        tmp <- tm_map(x, removeNumbers)
+        tmp <- tm_map(tmp, removePunctuation)                   
+        tmp <- tm_map(tmp, removeWords, stopwords())
+        tmp <- tm_map(tmp, stripWhitespace)
+        ##tmp <- tm_map(tmp, stemDocument, language = "en")
+        tmp <- tm_map(tmp, content_transformer(tolower))
+        tmp <- tm_map(tmp, content_transformer(function(x) iconv(x, "latin1", "ASCII", sub="")))
+        return(tmp)
+}
+
+## cleanse the data corpus
+dataClean_sw <- cleanCorp_sw(dataCorp)
+
+## create ngrams
+uni_sw <- ngram(dataClean_sw, 1)      # unigram
+bi_sw <- ngram(dataClean_sw, 2)       # bigram
+tri_sw <- ngram(dataClean_sw, 3)      # trigram
+
+## calculate frequencies
+uni_frq_sw <- freq(uni_sw)
+bi_frq_sw <- freq(bi_sw)
+tri_frq_sw <- freq(tri_sw)
+
+## create data frame
+y1 <- frame(uni_frq_sw)
+y2 <- frame(bi_frq_sw)
+y3 <- frame(tri_frq_sw)
+
+## print top 10 of frequencies
+dt_tbl_sw <- data.table(y1[1:10,c(1,2)], y2[1:10,c(1,2)], y3[1:10,c(1,2)])
+dt_tbl_sw
+```
+
+The removal of the stopwords makes the data corpus better usable since it concerns the most common words in a language and we do want to focus on the more important words. For more information about stop words in data mining see this [article](http://www.text-analytics101.com/2014/10/all-about-stop-words-for-text-mining.html).
+
+#### Coverage comparison
+The following section covers the question on how many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? 
+
+In order to do so the cumulative frequencies of the unigram are determined for the corpuses with and without the stopwords and plotted.
+
+```{r, echo=TRUE, fig.width=8, fig.height=6}
+## calculate cumulative relative frequencies for corpus without stopwords
+i <- cumsum(y1$rel_freq[order(-y1$rel_freq)])
+## calculate cumalative count
+j <- cumsum(y1$freq/y1$freq)
+## create a data table
+z1 <- data.table(y1, cum_rel_freq = i, cum_count = j)
+
+## calculate cumulative relative frequencies for corpus with stopwords
+m <- cumsum(x1$rel_freq[order(-x1$rel_freq)])
+## calculate cumalative count
+n <- cumsum(x1$freq/x1$freq)
+## create a data table
+z2 <- data.table(x1, cum_rel_freq = m, cum_count = n)
+
+## plot the cumalative count against the cumulative relative frequency
+p1 <- ggplot(data = z1, aes(x = cum_rel_freq, y = cum_count)) + geom_line() + geom_vline(xintercept = 0.50, colour="blue") + geom_vline(xintercept = 0.80, colour="red") + geom_vline(xintercept = 0.90, colour="green") + ggtitle("Without Stopwords")
+
+## plot the cumulative frequency against the cumulative relatvie frequency
+p2 <- ggplot(data = z2, aes(x = cum_rel_freq, y = cum_count)) + geom_line() + geom_vline(xintercept = 0.50, colour="blue") + geom_vline(xintercept = 0.80, colour="red") + geom_vline(xintercept = 0.90, colour="green") + ggtitle("With Stopwords")
+
+## create plot grid
+grid.arrange(p1, p2, ncol=1)
+
+## create data tables with different cumalative relatvie frequencies
+a1 <- z1[cum_rel_freq <=0.5,]
+a2 <- z2[cum_rel_freq <=0.5,]
+```
+
+The figures show that the variation in the corpus without stopswords is larger than in the corpus with stopswords. In order to cover 50% of the word instances, there are in the corpus without stopswords `r tail(a1, 1)[,cum_count]` unique words are needed. In the corpus with stopwords, there are `r tail(a2, 1)[,cum_count]` unique words needed. 
+
+### Conclusions
+Based on above analysis the following can concluded:
+
+* Quadrams are corpus specific and do not add additional value over trigrams, hence they are not going to used.
+* Removing stopswords increases the variation in the corpus, hence these will be used in the course of this project.
+
+### Next Steps
+Following this milestone project the structure offered by the Capstone project is followed: (3) Modeling, (4) Prediction, (5) Creative Exploration, (6) Create a Data Product and (7) make a slide deck steps.
+
+For the modeling and predication the simple Good Turing method is used. For an explanation please see this [article](http://www.d.umn.edu/~tpederse/Courses/CS8761-FALL02/Code/sgt-gale.pdf) by W. A. Gale.
