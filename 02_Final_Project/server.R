@@ -1,8 +1,9 @@
 # server
-libs <- c("shiny", "stringr", "data.table")
-load <- lapply(libs, require, character.only = TRUE)
+library(shiny)
+library(stringr)
+library(data.table)
 
-source("inputPreparation.R") 
+source("inputPreparation.R")
 
 shinyServer(function(input, output){
 

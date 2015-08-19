@@ -2,21 +2,24 @@
 ## App input preparation file
 ## loads the data files
 ## defines the clean data and word prediction functions
+library(shiny)
+library(stringr)
+library(data.table)
 
 # load most common word
-com_wrd <- readRDS("Most_Common_wrd.rData")
+com_wrd <- readRDS("data/Most_Common_wrd.rData")
 
 # load SGT n grams
-SGT_uni <- data.table(readRDS("SGT_uni.rData"))
-SGT_bi <- data.table(readRDS("SGT_bi.rData"))
-SGT_tri <- data.table(readRDS("SGT_tri.rData"))
-SGT_quad <- data.table(readRDS("SGT_quad.rData"))
+SGT_uni <- data.table(readRDS("data/SGT_uni.rData"))
+SGT_bi <- data.table(readRDS("data/SGT_bi.rData"))
+SGT_tri <- data.table(readRDS("data/SGT_tri.rData"))
+SGT_quad <- data.table(readRDS("data/SGT_quad.rData"))
 
 # load word frequencies
-ng_uni <- data.table(readRDS("ng_uni_1.rData"))
-ng_tri_w <- data.table(readRDS("ng_tri_w.rData"))
-ng_bi_w <- data.table(readRDS("ng_bi_w.rData"))
-ng_quad_w <- data.table(readRDS("ng_quad_w.rData"))
+ng_uni_w <- data.table(readRDS("data/ng_uni_w.RData"))
+ng_tri_w <- data.table(readRDS("data/ng_tri_w.rData"))
+ng_bi_w <- data.table(readRDS("data/ng_bi_w.rData"))
+ng_quad_w <- data.table(readRDS("data/ng_quad_w.rData"))
 
 # function to clean input data
 cleanData <- function(input_txt){
@@ -35,7 +38,7 @@ cleanData <- function(input_txt){
 word_pred <- function(input_txt){
         
         if (input_txt == ""){
-                wrd <- ""
+                wrd <- "Enter Text"
         } else {        
                 split_txt <- unlist(str_split(input_txt, " "))
                 
@@ -59,8 +62,6 @@ word_pred <- function(input_txt){
                         
                         quad_fq_p <- data.table(wi = quad_fq_sub$wi, p = p_quad)
                         wrd_dt <- setorder(quad_fq_p, -p)
-#                         quad_fq_p <- setorder(quad_fq_p, -p)
-#                         wrd <- quad_fq_p[1, wi]
                         
                 } else if (dim(tri_fq_sub)[1] > 0){              
                         ln <- dim(tri_fq_sub)[1]
@@ -74,8 +75,7 @@ word_pred <- function(input_txt){
                         
                         tri_fq_p <- data.table(wi = tri_fq_sub$wi, p = p_tri)
                         wrd_dt <- setorder(tri_fq_p, -p)
-#                         tri_fq_p <- setorder(tri_fq_p, -p)
-#                         wrd <- tri_fq_p[1, wi]
+                        wrd <- tri_fq_p[1, wi]
                         
                 } else if (dim(bi_fq_sub)[1] > 0){
                         ln <- dim(bi_fq_sub)[1]
@@ -89,11 +89,9 @@ word_pred <- function(input_txt){
 
                         bi_fq_p <- data.table(wi = bi_fq_sub$wi, p = p_bi)
                         wrd_dt <- setorder(bi_fq_p, -p)
-#                         bi_fq_p <- setorder(bi_fq_p, -p)
-#                         wrd <- bi_fq_p[1, wi]
-                        
+
                 } else {
-                        wrd_dt <- as.character(com_wrd$words)
+                        wrd_dt <- com_wrd
                 }
                 
                 if(is.null(dim(wrd_dt))){
@@ -108,7 +106,7 @@ word_pred <- function(input_txt){
                                 
                                 for (i in 1:ln){
                                         y <- wrd_dt$wi
-                                        x <- ng_uni[words == y[i], freq]
+                                        x <- ng_uni_w[wi == y[i], freq]
                                         z <- SGT_uni[r == x, p]
                                         p_uni[i] <- z
                                 }
