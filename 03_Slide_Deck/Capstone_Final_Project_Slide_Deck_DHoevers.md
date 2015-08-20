@@ -19,8 +19,8 @@ id: slide2
 title: false
 
 ### How to Use the Next Word App
-<small> The objective of the *Next Word App* is to predict the next word for the user based on a phrase provided. To maximize the user experience, the User Interface of the *Next Word App* is made as user friendly as possible. 
-* The user can start entering a phrase and the *Next Word App* will predict the next word while the user is entering the words. In addition the phrase entered together with the next word is provided. 
+<small> The objective of the *Next Word App* is to predict the next word for the user based on a phrase provided. To maximize the user experience, the User Interface of the *Next Word App* is made as user friendly as possible. The app can be accessed via this [link](https://daanhoevers.shinyapps.io/Capstone_Final_Project_Next_Word_App).
+* The user can start entering a phrase and the *Next Word App* will predict the next word while the user is entering the rest of the sentence. Additionally, the phrase entered by the user with the next word is shown. 
 * Since the concept of [reactive programming](https://en.wikipedia.org/wiki/Reactive_programming) is used the output is automatically updated as the user provides new values.
 * See below screenshot of the user interface with an input text box and 2 output text boxes:</small>
 
@@ -73,7 +73,7 @@ title: false
 <small> The *Next Word App* has an execellent balance between speed and accuracy
 
 **Speed**
-The app loads the functions, data tables in rData and provides the first prediction in 2.77 seconds locally. Due to the reactive capabilities, the user experience almost no waiting time on the next word when the phrase is extended.
+The app loads the functions, data tables in rData and provides the first prediction in 2.85 seconds locally. Due to the reactive capabilities, the user experience almost no waiting time on the next word when the phrase is extended.
 
 **Accuracy**
 The following table provides an illustration of the accuracy of the prediction model. It concerns 2 questions from the Capstone Project quizes with the "correct" and the *Next Word App* result.
